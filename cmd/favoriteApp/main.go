@@ -10,6 +10,8 @@ import (
 	"log"
 	"os"
 
+	"github.com/go-swagno/swagno"
+	"github.com/go-swagno/swagno-fiber/swagger"
 	"github.com/gofiber/fiber/v2"
 	"github.com/joho/godotenv"
 )
@@ -51,6 +53,14 @@ func main() {
 	listHandler := handlers.NewFavoriteListHandler(listService)
 
 	listHandler.SetRoutes(app)
+
+	sw := swagno.New(swagno.Config{Title: "Testing API", Version: "v1.0.0"})
+
+	sw.AddEndpoints(handlers.ItemGetEndpoints())
+
+	sw.AddEndpoints(handlers.ListGetEndpoints())
+
+	swagger.SwaggerHandler(app, sw.MustToJson(), swagger.WithPrefix("/swagger"))
 
 	log.Fatal(app.Listen(":8080"))
 }

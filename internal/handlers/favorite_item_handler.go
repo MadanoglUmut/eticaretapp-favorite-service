@@ -4,6 +4,9 @@ import (
 	"favorite_service/internal/models"
 	"strconv"
 
+	"github.com/go-swagno/swagno/components/endpoint"
+	"github.com/go-swagno/swagno/components/http/response"
+	"github.com/go-swagno/swagno/components/parameter"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -28,13 +31,13 @@ func (h *FavoriteItemHandler) GetFavoriteItemHandle(c *fiber.Ctx) error {
 	listId, err := c.ParamsInt("listId")
 
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(models.FailResponse{FailData: err})
+		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{Error: "List Id Bulunamadi", Details: err.Error()})
 	}
 
 	itemList, err := h.favoriteItemService.GetFavoriteItem(listId)
 
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(models.FailResponse{FailData: err})
+		return c.Status(fiber.StatusInternalServerError).JSON(models.ErorResponse{Error: "Servis Hatası", Details: err.Error()})
 	}
 
 	return c.Status(fiber.StatusOK).JSON(models.SuccesResponse{SuccesData: itemList})
@@ -46,19 +49,19 @@ func (h *FavoriteItemHandler) CreateFavoriteItemHandle(c *fiber.Ctx) error {
 	newItem := models.CreateFavoriteItem{}
 
 	if err := c.BodyParser(&newItem); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(models.FailResponse{FailData: "err1"})
+		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{Error: "Body Parse Hatasi", Details: err.Error()})
 	}
 
 	err := newItem.Validate()
 
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(models.FailResponse{FailData: "err2"})
+		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{Error: "Validate Hatasi", Details: err.Error()})
 	}
 
 	favoriteItem, err := h.favoriteItemService.CreateFavoriteItem(newItem)
 
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(models.FailResponse{FailData: "err3"})
+		return c.Status(fiber.StatusInternalServerError).JSON(models.ErorResponse{Error: "Servis Hatasi", Details: err.Error()})
 	}
 
 	return c.Status(fiber.StatusOK).JSON(models.SuccesResponse{SuccesData: favoriteItem})
@@ -70,23 +73,23 @@ func (h *FavoriteItemHandler) DeleteFavoriteItemHandle(c *fiber.Ctx) error {
 	listId, err := c.ParamsInt("listId")
 
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(models.FailResponse{FailData: err})
+		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{Error: "Parametre Hatasi", Details: err.Error()})
 	}
 
 	itemIdStr := c.Query("itemId")
 	if itemIdStr == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(models.FailResponse{FailData: "itemId bilgisi zorunlu"})
+		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{Error: "Query Parametre Hatasi", Details: "Query Param Zorunlu"})
 	}
 
 	itemId, err := strconv.Atoi(itemIdStr)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(models.FailResponse{FailData: err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{Error: "Item Id Tip Dönüşüm Hatasi", Details: err.Error()})
 	}
 
 	err = h.favoriteItemService.DeleteFavoriteItem(listId, itemId)
 
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(models.FailResponse{FailData: err})
+		return c.Status(fiber.StatusInternalServerError).JSON(models.ErorResponse{Error: "Servis Hatasi", Details: err.Error()})
 	}
 
 	return c.Status(fiber.StatusOK).JSON(models.SuccesResponse{SuccesData: nil})
@@ -101,4 +104,36 @@ func (h *FavoriteItemHandler) SetRoutes(app *fiber.App) {
 	itemGroup.Post("", h.CreateFavoriteItemHandle)
 	itemGroup.Delete("/:listId/item", h.DeleteFavoriteItemHandle)
 
+}
+
+func ItemGetEndpoints() []*endpoint.EndPoint {
+	return []*endpoint.EndPoint{
+		endpoint.New(
+			endpoint.GET,
+			"/items/{listId}",
+			endpoint.WithTags("item"),
+			endpoint.WithParams(parameter.IntParam("listId", parameter.Path, parameter.WithRequired())),
+			endpoint.WithSuccessfulReturns([]response.Response{response.New(models.FavoriteItem{}, "200", "OK")}),
+			endpoint.WithErrors([]response.Response{response.New(models.ErorResponse{}, "400", "Bad Request")}),
+		),
+
+		endpoint.New(
+			endpoint.POST,
+			"/items",
+			endpoint.WithTags("item"),
+			endpoint.WithBody(models.CreateFavoriteItem{}),
+			endpoint.WithSuccessfulReturns([]response.Response{response.New(models.FavoriteItem{}, "200", "OK")}),
+			endpoint.WithErrors([]response.Response{response.New(models.ErorResponse{}, "400", "Bad Request")}),
+		),
+
+		endpoint.New(
+			endpoint.DELETE,
+			"/items/{listId}/item",
+			endpoint.WithTags("item"),
+			endpoint.WithParams(parameter.IntParam("listId", parameter.Path, parameter.WithRequired())),
+			endpoint.WithParams(parameter.IntParam("itemId", parameter.Query, parameter.WithRequired())),
+			endpoint.WithSuccessfulReturns([]response.Response{response.New(models.FavoriteItem{}, "200", "OK")}),
+			endpoint.WithErrors([]response.Response{response.New(models.ErorResponse{}, "400", "Bad Request")}),
+		),
+	}
 }
