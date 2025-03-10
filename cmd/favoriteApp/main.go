@@ -38,13 +38,13 @@ func main() {
 
 	itemRepository := repositories.NewFavoriteItemRepository(db)
 
-	itemService := services.NewFavoriItemService(itemRepository)
+	listRepository := repositories.NewFavoriteListRepository(db)
+
+	itemService := services.NewFavoriItemService(itemRepository, listRepository)
 
 	itemHandler := handlers.NewFavoriteItemHandler(itemService)
 
 	itemHandler.SetRoutes(app)
-
-	listRepository := repositories.NewFavoriteListRepository(db)
 
 	userClient := client.NewUserClient("http://localhost:3000/users")
 
