@@ -9,6 +9,7 @@ type favoriteListRepository interface {
 	CreateFavoriteList(favoriteList *models.FavoriteList) error
 	UpdateFavoriteList(id int, updtList models.UpdateFavoriteList) (models.FavoriteList, error)
 	DeleteFavoriteList(listId int) error
+	GetListOwner(listId int) (int, error)
 }
 
 type favoriteItemRepository interface {
@@ -72,15 +73,32 @@ func (s *FavoriteListService) CreateFavoriteList(list *models.FavoriteList) erro
 	return s.listRepo.CreateFavoriteList(list)
 }
 
-func (s *FavoriteListService) UpdateFavoriteList(id int, list models.UpdateFavoriteList) (models.FavoriteList, error) {
-	return s.listRepo.UpdateFavoriteList(id, list)
+func (s *FavoriteListService) UpdateFavoriteList(listId int, list models.UpdateFavoriteList, userId int) (models.FavoriteList, error) {
+	ownerId, err := s.listRepo.GetListOwner(listId)
+
+	if err != nil {
+		return models.FavoriteList{}, models.ErrunaUthorizedAction
+	}
+
+	if ownerId != userId {
+		return models.FavoriteList{}, models.ErrunaUthorizedAction
+	}
+
+	return s.listRepo.UpdateFavoriteList(listId, list)
 }
 
-func (s *FavoriteListService) DeleteFavoriteList(id int) error {
+func (s *FavoriteListService) DeleteFavoriteList(listId int) error {
 
-	if err := s.itemRepo.DeleteFavoriteItemsByListId(id); err != nil {
+	if err := s.itemRepo.DeleteFavoriteItemsByListId(listId); err != nil {
 		return err
 	}
 
-	return s.listRepo.DeleteFavoriteList(id)
+	return s.listRepo.DeleteFavoriteList(listId)
 }
+
+//Kullanıcı işlem yaptığı servis giriş çıkış kayıt ol token üretcek DB  -- Kullanıcı servisi kullanıcı bilgisini görsün- hesabını sil - hesap güncelle
+//DB email - password - isim - soyisim - kullanıcı resmi
+//Ürün Servisi GET ENDPOİNT ARA ARA ERİŞİLEMESİN BİLE İSTİYE SERVİS ÇÖKÜYOR MUŞ GİBİ
+//Favorite Servis RETRY MEKANİZMASI OLCAK ÜRÜN ÇEKEREN PARALLELİK
+//JWT TOKEN TOKEN ÜRET REDİSE YAZ
+//Token kontrol eden end point

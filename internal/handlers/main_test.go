@@ -32,7 +32,8 @@ type HandlerSetup struct {
 
 func (h *HandlerSetup) SetupTestItemHandler() {
 	itemRepository := repositories.NewFavoriteItemRepository(h.DB)
-	itemService := services.NewFavoriItemService(itemRepository)
+	listRepository := repositories.NewFavoriteListRepository(h.DB)
+	itemService := services.NewFavoriItemService(itemRepository, listRepository)
 	itemHandler := NewFavoriteItemHandler(itemService)
 	itemHandler.SetRoutes(h.App)
 }

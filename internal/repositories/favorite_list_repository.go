@@ -68,3 +68,19 @@ func (r *FavoriteListRepository) DeleteFavoriteList(listId int) error {
 	return nil
 
 }
+
+//BU FONKSİYON TEK DEĞER DÖNMESİN
+
+func (r *FavoriteListRepository) GetListOwner(listId int) (int, error) {
+
+	var favoriteList models.FavoriteList
+
+	if err := r.db.Table("favoritelist").Where("id = ?", listId).First(&favoriteList).Error; err != nil {
+
+		return 0, err
+
+	}
+
+	return favoriteList.UserId, nil
+
+}
