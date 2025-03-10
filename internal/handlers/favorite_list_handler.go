@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"favorite_service/internal/models"
+	"strconv"
 
 	"github.com/go-swagno/swagno/components/endpoint"
 	"github.com/go-swagno/swagno/components/http/response"
@@ -12,7 +13,7 @@ import (
 type favoriteListService interface {
 	GetUserFavoriteListsWithItems(userId int) ([]models.FavoriteListResponse, error)
 	CreateFavoriteList(list *models.FavoriteList) error
-	UpdateFavoriteList(id int, list models.UpdateFavoriteList) (models.FavoriteList, error)
+	UpdateFavoriteList(listId int, list models.UpdateFavoriteList, userId int) (models.FavoriteList, error)
 	DeleteFavoriteList(id int) error
 }
 
@@ -83,6 +84,18 @@ func (h *FavoriteListHandler) UpdateFavoriteListHandle(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{Error: "List Id Bulunamadi", Details: err.Error()})
 	}
 
+	userIdStr := c.Query("userId")
+
+	if userIdStr == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{Error: "Query Parametre Hatasi", Details: "Query Parametresi Zorunlu"})
+	}
+
+	userId, err := strconv.Atoi(userIdStr)
+
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{Error: "User Id Tip Dönüşüm Hatasi", Details: err.Error()})
+	}
+
 	list := models.UpdateFavoriteList{}
 
 	if err := c.BodyParser(&list); err != nil {
@@ -95,7 +108,7 @@ func (h *FavoriteListHandler) UpdateFavoriteListHandle(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{Error: "Validate Hatasi", Details: err.Error()})
 	}
 
-	favoriteList, err := h.favoriteListService.UpdateFavoriteList(listId, list)
+	favoriteList, err := h.favoriteListService.UpdateFavoriteList(listId, list, userId)
 
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(models.ErorResponse{Error: "Servis Hatasi", Details: err.Error()})
@@ -130,7 +143,7 @@ func (h *FavoriteListHandler) SetRoutes(app *fiber.App) {
 
 	listGroup.Get("/:userId", h.GetUserFavoriteListsWithItemsHandle)
 	listGroup.Post("", h.CreateFavoriteListHandle)
-	listGroup.Put("/:listId", h.UpdateFavoriteListHandle)
+	listGroup.Put("/:listId/user", h.UpdateFavoriteListHandle)
 	listGroup.Delete("/:listId", h.DeleteFavoriteListHandle)
 }
 
@@ -157,9 +170,10 @@ func ListGetEndpoints() []*endpoint.EndPoint {
 
 		endpoint.New(
 			endpoint.PUT,
-			"/lists/{listId}",
+			"/lists/{listId}/user",
 			endpoint.WithTags("lists"),
 			endpoint.WithParams(parameter.IntParam("listId", parameter.Path, parameter.WithRequired())),
+			endpoint.WithParams(parameter.IntParam("userId", parameter.Query, parameter.WithRequired())),
 			endpoint.WithBody(models.UpdateFavoriteList{}),
 			endpoint.WithSuccessfulReturns([]response.Response{response.New(models.FavoriteList{}, "200", "OK")}),
 			endpoint.WithErrors([]response.Response{response.New(models.ErorResponse{}, "404", "Bad Request")}),
