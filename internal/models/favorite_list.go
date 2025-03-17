@@ -14,9 +14,9 @@ type FavoriteList struct {
 }
 
 type FavoriteListResponse struct {
-	ListId   int            `json:"list_id"`
-	ListName string         `json:"list_name"`
-	Items    []FavoriteItem `json:"items"`
+	ListId   int       `json:"list_id"`
+	ListName string    `json:"list_name"`
+	Items    []Product `json:"products"`
 }
 
 type CreateFavoriteList struct {
@@ -31,8 +31,8 @@ type UpdateFavoriteList struct {
 func (a CreateFavoriteList) Validate() error {
 
 	return validation.ValidateStruct(&a,
-		validation.Field(&a.ListName, validation.Required.Error("İsim alanı Zorunlu"), validation.Length(2, 100).Error("İsim 2-100 aralığında olmalı")),
-		validation.Field(&a.UserId, validation.Required))
+		validation.Field(&a.ListName, validation.Required.Error("İsim alanı Zorunlu"), validation.Length(2, 100).Error("İsim 2-100 aralığında olmalı")))
+	//validation.Field(&a.UserId, validation.Required))
 
 }
 
