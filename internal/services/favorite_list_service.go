@@ -9,7 +9,7 @@ type favoriteListRepository interface {
 	CreateFavoriteList(favoriteList *models.FavoriteList) error
 	UpdateFavoriteList(id int, updtList models.UpdateFavoriteList) (models.FavoriteList, error)
 	DeleteFavoriteList(listId int) error
-	GetListOwner(listId int) (int, error)
+	GetListOwner(listId int) (models.FavoriteList, error)
 }
 
 type favoriteItemRepository interface {
@@ -17,31 +17,38 @@ type favoriteItemRepository interface {
 	DeleteFavoriteItemsByListId(listId int) error
 }
 
-type userClient interface {
-	CheckUserId(userId int) error
+type favoriteListProductClient interface {
+	VerifyProduct(productId int) (*models.Product, error)
+}
+
+type favoriteListUserClient interface {
+	VerifyUser(token string) (*models.Users, error)
 }
 
 type FavoriteListService struct {
-	listRepo   favoriteListRepository
-	itemRepo   favoriteItemRepository
-	userClient userClient
+	listRepo                  favoriteListRepository
+	itemRepo                  favoriteItemRepository
+	favoriteListProductClient favoriteListProductClient
+	favoriteListUserClient    favoriteListUserClient
 }
 
-func NewFavoriteListService(listRepo favoriteListRepository, itemRepo favoriteItemRepository, userClient userClient) *FavoriteListService {
+func NewFavoriteListService(
+	listRepo favoriteListRepository,
+	itemRepo favoriteItemRepository,
+	favoriteListProductClient favoriteListProductClient,
+	favoriteListUserClient favoriteListUserClient) *FavoriteListService {
+
 	return &FavoriteListService{
-		listRepo:   listRepo,
-		itemRepo:   itemRepo,
-		userClient: userClient,
+		listRepo:                  listRepo,
+		itemRepo:                  itemRepo,
+		favoriteListProductClient: favoriteListProductClient,
+		favoriteListUserClient:    favoriteListUserClient,
 	}
 }
 
-func (s *FavoriteListService) GetUserFavoriteListsWithItems(userId int) ([]models.FavoriteListResponse, error) {
+func (s *FavoriteListService) GetUserFavoriteListsWithItems(token string) ([]models.FavoriteListResponse, error) {
 
-	if err := s.userClient.CheckUserId(userId); err != nil {
-		return nil, models.ErrUserNotFound
-	}
-
-	lists, err := s.listRepo.GetFavoriteList(userId)
+	user, err := s.favoriteListUserClient.VerifyUser(token)
 
 	if err != nil {
 		return nil, err
@@ -49,10 +56,18 @@ func (s *FavoriteListService) GetUserFavoriteListsWithItems(userId int) ([]model
 
 	var response []models.FavoriteListResponse
 
+	lists, err := s.listRepo.GetFavoriteList(user.ID)
+	if err != nil {
+		return nil, err
+	}
+
 	for _, list := range lists {
-
 		items, err := s.itemRepo.GetFavoriteItem(list.Id)
+		if err != nil {
+			return nil, err
+		}
 
+		products, err := GetProductInfo(items, s.favoriteListProductClient)
 		if err != nil {
 			return nil, err
 		}
@@ -60,34 +75,67 @@ func (s *FavoriteListService) GetUserFavoriteListsWithItems(userId int) ([]model
 		response = append(response, models.FavoriteListResponse{
 			ListId:   list.Id,
 			ListName: list.ListName,
-			Items:    items,
+			Items:    products,
 		})
-
 	}
 
 	return response, nil
 
 }
 
-func (s *FavoriteListService) CreateFavoriteList(list *models.FavoriteList) error {
+func (s *FavoriteListService) CreateFavoriteList(list *models.FavoriteList, token string) error {
+
+	user, err := s.favoriteListUserClient.VerifyUser(token)
+
+	if err != nil {
+		return err
+	}
+
+	list.UserId = user.ID
+
 	return s.listRepo.CreateFavoriteList(list)
 }
 
-func (s *FavoriteListService) UpdateFavoriteList(listId int, list models.UpdateFavoriteList, userId int) (models.FavoriteList, error) {
-	ownerId, err := s.listRepo.GetListOwner(listId)
+func (s *FavoriteListService) UpdateFavoriteList(listId int, list models.UpdateFavoriteList, token string) (models.FavoriteList, error) {
+
+	user, err := s.favoriteListUserClient.VerifyUser(token)
+
+	if err != nil {
+		return models.FavoriteList{}, err
+	}
+
+	ownerFavoriteList, err := s.listRepo.GetListOwner(listId)
 
 	if err != nil {
 		return models.FavoriteList{}, models.ErrunaUthorizedAction
 	}
 
-	if ownerId != userId {
+	if ownerFavoriteList.UserId != user.ID {
 		return models.FavoriteList{}, models.ErrunaUthorizedAction
 	}
 
 	return s.listRepo.UpdateFavoriteList(listId, list)
 }
 
-func (s *FavoriteListService) DeleteFavoriteList(listId int) error {
+func (s *FavoriteListService) DeleteFavoriteList(listId int, token string) error {
+
+	user, err := s.favoriteListUserClient.VerifyUser(token)
+
+	if err != nil {
+		return err
+	}
+
+	ownerFavoriteList, err := s.listRepo.GetListOwner(listId)
+
+	if err != nil {
+		return err
+	}
+
+	if ownerFavoriteList.UserId != user.ID {
+
+		return models.ErrUserUnauthorized
+
+	}
 
 	if err := s.itemRepo.DeleteFavoriteItemsByListId(listId); err != nil {
 		return err
@@ -95,10 +143,3 @@ func (s *FavoriteListService) DeleteFavoriteList(listId int) error {
 
 	return s.listRepo.DeleteFavoriteList(listId)
 }
-
-//Kullanıcı işlem yaptığı servis giriş çıkış kayıt ol token üretcek DB  -- Kullanıcı servisi kullanıcı bilgisini görsün- hesabını sil - hesap güncelle
-//DB email - password - isim - soyisim - kullanıcı resmi
-//Ürün Servisi GET ENDPOİNT ARA ARA ERİŞİLEMESİN BİLE İSTİYE SERVİS ÇÖKÜYOR MUŞ GİBİ
-//Favorite Servis RETRY MEKANİZMASI OLCAK ÜRÜN ÇEKEREN PARALLELİK
-//JWT TOKEN TOKEN ÜRET REDİSE YAZ
-//Token kontrol eden end point
