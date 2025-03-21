@@ -1,8 +1,8 @@
 package handlers
 
 import (
+	"context"
 	"favorite_service/internal/models"
-	"strconv"
 
 	"github.com/go-swagno/swagno/components/endpoint"
 	"github.com/go-swagno/swagno/components/http/response"
@@ -11,10 +11,10 @@ import (
 )
 
 type favoriteListService interface {
-	GetUserFavoriteListsWithItems(userId int) ([]models.FavoriteListResponse, error)
-	CreateFavoriteList(list *models.FavoriteList) error
-	UpdateFavoriteList(listId int, list models.UpdateFavoriteList, userId int) (models.FavoriteList, error)
-	DeleteFavoriteList(id int) error
+	GetUserFavoriteListsWithItems(token string, ctx context.Context) ([]models.FavoriteListResponse, error)
+	CreateFavoriteList(list *models.FavoriteList, token string, ctx context.Context) error
+	UpdateFavoriteList(listId int, list models.UpdateFavoriteList, token string, ctx context.Context) (models.FavoriteList, error)
+	DeleteFavoriteList(listId int, token string, ctx context.Context) error
 }
 
 type FavoriteListHandler struct {
@@ -29,21 +29,30 @@ func NewFavoriteListHandler(favoriteListService favoriteListService) *FavoriteLi
 
 func (h *FavoriteListHandler) GetUserFavoriteListsWithItemsHandle(c *fiber.Ctx) error {
 
-	userId, err := c.ParamsInt("userId")
-
-	if err != nil {
-
-		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{Error: "User Id Parametre Hatasi", Details: err.Error()})
-
+	authHeader := c.Get("Authorization")
+	if authHeader == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(models.ErorResponse{
+			Error:   "Token Authorization Hatasi",
+			Details: "Token"},
+		)
 	}
 
-	favoriteList, err := h.favoriteListService.GetUserFavoriteListsWithItems(userId)
+	ctx := c.UserContext()
+
+	favoriteList, err := h.favoriteListService.GetUserFavoriteListsWithItems(authHeader, ctx)
 
 	if err != nil {
 		if err == models.ErrUserNotFound {
-			return c.Status(fiber.StatusNotFound).JSON(models.ErorResponse{Error: "Kullanici Bulunamadi", Details: err.Error()})
+			return c.Status(fiber.StatusNotFound).JSON(models.ErorResponse{
+				Error:   "Kullanıcı bulunamadı",
+				Details: err.Error()},
+			)
+
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(models.ErorResponse{Error: "Servis Hatasi", Details: err.Error()})
+		return c.Status(fiber.StatusInternalServerError).JSON(models.ErorResponse{
+			Error:   "Servis hatası",
+			Details: err.Error()},
+		)
 	}
 
 	return c.Status(fiber.StatusOK).JSON(models.SuccesResponse{SuccesData: favoriteList})
@@ -52,24 +61,44 @@ func (h *FavoriteListHandler) GetUserFavoriteListsWithItemsHandle(c *fiber.Ctx) 
 
 func (h *FavoriteListHandler) CreateFavoriteListHandle(c *fiber.Ctx) error {
 
+	authHeader := c.Get("Authorization")
+
+	if authHeader == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(models.ErorResponse{
+			Error:   "Token Authorization Hatasi",
+			Details: "Token"},
+		)
+
+	}
+
 	list := models.CreateFavoriteList{}
 	if err := c.BodyParser(&list); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{Error: "Body Parse Hatasi", Details: err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{
+			Error:   "Body Parse Hatasi",
+			Details: err.Error()},
+		)
 	}
 	err := list.Validate()
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{Error: "Validate Hatasi", Details: err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{
+			Error:   "Validate Hatasi",
+			Details: err.Error()},
+		)
 	}
 
 	favoriteList := models.FavoriteList{
 		ListName: list.ListName,
-		UserId:   list.UserId,
 	}
 
-	err = h.favoriteListService.CreateFavoriteList(&favoriteList)
+	ctx := c.UserContext()
+
+	err = h.favoriteListService.CreateFavoriteList(&favoriteList, authHeader, ctx)
 
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(models.ErorResponse{Error: "Servis Hatasi", Details: err.Error()})
+		return c.Status(fiber.StatusInternalServerError).JSON(models.ErorResponse{
+			Error:   "Servis Hatasi",
+			Details: err.Error()},
+		)
 	}
 
 	return c.Status(fiber.StatusOK).JSON(models.SuccesResponse{SuccesData: favoriteList})
@@ -81,37 +110,48 @@ func (h *FavoriteListHandler) UpdateFavoriteListHandle(c *fiber.Ctx) error {
 	listId, err := c.ParamsInt("listId")
 
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{Error: "List Id Bulunamadi", Details: err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{
+			Error:   "List Id Bulunamadi",
+			Details: err.Error()},
+		)
 	}
 
-	userIdStr := c.Query("userId")
+	authHeader := c.Get("Authorization")
+	if authHeader == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(models.ErorResponse{
+			Error:   "Token Authorization Hatasi",
+			Details: "Token"},
+		)
 
-	if userIdStr == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{Error: "Query Parametre Hatasi", Details: "Query Parametresi Zorunlu"})
-	}
-
-	userId, err := strconv.Atoi(userIdStr)
-
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{Error: "User Id Tip Dönüşüm Hatasi", Details: err.Error()})
 	}
 
 	list := models.UpdateFavoriteList{}
 
 	if err := c.BodyParser(&list); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{Error: "Body Parse Hatasi", Details: err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{
+			Error:   "Body Parse Hatasi",
+			Details: err.Error()},
+		)
 	}
 
 	err = list.Validate()
 
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{Error: "Validate Hatasi", Details: err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{
+			Error:   "Validate Hatasi",
+			Details: err.Error()},
+		)
 	}
 
-	favoriteList, err := h.favoriteListService.UpdateFavoriteList(listId, list, userId)
+	ctx := c.UserContext()
+
+	favoriteList, err := h.favoriteListService.UpdateFavoriteList(listId, list, authHeader, ctx)
 
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(models.ErorResponse{Error: "Servis Hatasi", Details: err.Error()})
+		return c.Status(fiber.StatusInternalServerError).JSON(models.ErorResponse{
+			Error:   "Servis Hatasi",
+			Details: err.Error()},
+		)
 	}
 
 	return c.Status(fiber.StatusOK).JSON(models.SuccesResponse{SuccesData: favoriteList})
@@ -123,15 +163,30 @@ func (h *FavoriteListHandler) DeleteFavoriteListHandle(c *fiber.Ctx) error {
 	listId, err := c.ParamsInt("listId")
 
 	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{
+			Error:   "List Id Bulunamadi",
+			Details: err.Error()},
+		)
+	}
 
-		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{Error: "List Id Bulunamadi", Details: err.Error()})
+	authHeader := c.Get("Authorization")
+	if authHeader == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(models.ErorResponse{
+			Error:   "Token Authorization Hatasi",
+			Details: "Token"},
+		)
 
 	}
 
-	err = h.favoriteListService.DeleteFavoriteList(listId)
+	ctx := c.UserContext()
+
+	err = h.favoriteListService.DeleteFavoriteList(listId, authHeader, ctx)
 
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{Error: "Servis Hatasi", Details: err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{
+			Error:   "Servis Hatasi",
+			Details: err.Error()},
+		)
 	}
 
 	return c.Status(fiber.StatusOK).JSON(models.SuccesResponse{SuccesData: "Silindi"})
@@ -141,9 +196,9 @@ func (h *FavoriteListHandler) DeleteFavoriteListHandle(c *fiber.Ctx) error {
 func (h *FavoriteListHandler) SetRoutes(app *fiber.App) {
 	listGroup := app.Group("/lists")
 
-	listGroup.Get("/:userId", h.GetUserFavoriteListsWithItemsHandle)
+	listGroup.Get("/", h.GetUserFavoriteListsWithItemsHandle)
 	listGroup.Post("", h.CreateFavoriteListHandle)
-	listGroup.Put("/:listId/user", h.UpdateFavoriteListHandle)
+	listGroup.Put("/:listId", h.UpdateFavoriteListHandle)
 	listGroup.Delete("/:listId", h.DeleteFavoriteListHandle)
 }
 
@@ -152,10 +207,10 @@ func ListGetEndpoints() []*endpoint.EndPoint {
 	return []*endpoint.EndPoint{
 		endpoint.New(
 			endpoint.GET,
-			"/lists/{userId}",
+			"/lists",
 			endpoint.WithTags("lists"),
-			endpoint.WithParams(parameter.IntParam("userId", parameter.Path, parameter.WithRequired())),
-			endpoint.WithSuccessfulReturns([]response.Response{response.New(models.FavoriteListResponse{}, "200", "OK")}),
+			endpoint.WithParams(parameter.StrParam("Authorization", parameter.Header, parameter.WithRequired())),
+			endpoint.WithSuccessfulReturns([]response.Response{response.New([]models.FavoriteListResponse{}, "200", "OK")}),
 			endpoint.WithErrors([]response.Response{response.New(models.ErorResponse{}, "404", "Bad Request")}),
 		),
 
@@ -163,6 +218,7 @@ func ListGetEndpoints() []*endpoint.EndPoint {
 			endpoint.POST,
 			"/lists",
 			endpoint.WithTags("lists"),
+			endpoint.WithParams(parameter.StrParam("Authorization", parameter.Header, parameter.WithRequired())),
 			endpoint.WithBody(models.CreateFavoriteList{}),
 			endpoint.WithSuccessfulReturns([]response.Response{response.New(models.FavoriteList{}, "200", "OK")}),
 			endpoint.WithErrors([]response.Response{response.New(models.ErorResponse{}, "404", "Bad Request")}),
@@ -170,10 +226,10 @@ func ListGetEndpoints() []*endpoint.EndPoint {
 
 		endpoint.New(
 			endpoint.PUT,
-			"/lists/{listId}/user",
+			"/lists/{listId}",
 			endpoint.WithTags("lists"),
 			endpoint.WithParams(parameter.IntParam("listId", parameter.Path, parameter.WithRequired())),
-			endpoint.WithParams(parameter.IntParam("userId", parameter.Query, parameter.WithRequired())),
+			endpoint.WithParams(parameter.StrParam("Authorization", parameter.Header, parameter.WithRequired())),
 			endpoint.WithBody(models.UpdateFavoriteList{}),
 			endpoint.WithSuccessfulReturns([]response.Response{response.New(models.FavoriteList{}, "200", "OK")}),
 			endpoint.WithErrors([]response.Response{response.New(models.ErorResponse{}, "404", "Bad Request")}),
@@ -183,7 +239,8 @@ func ListGetEndpoints() []*endpoint.EndPoint {
 			"/lists/{listId}",
 			endpoint.WithTags("lists"),
 			endpoint.WithParams(parameter.IntParam("listId", parameter.Path, parameter.WithRequired())),
-			endpoint.WithSuccessfulReturns([]response.Response{response.New(models.FavoriteList{}, "200", "OK")}),
+			endpoint.WithParams(parameter.StrParam("Authorization", parameter.Header, parameter.WithRequired())),
+			endpoint.WithSuccessfulReturns([]response.Response{response.New(models.SuccesResponse{}, "200", "OK")}),
 			endpoint.WithErrors([]response.Response{response.New(models.ErorResponse{}, "404", "Bad Request")}),
 		),
 	}
