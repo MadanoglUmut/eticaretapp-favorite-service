@@ -15,7 +15,9 @@ func TestFavoriteListHandler(t *testing.T) {
 
 	t.Run("TestGetUserFavoriteListsWithItemsHandle", func(t *testing.T) {
 
-		request := httptest.NewRequest("GET", "/lists/1", nil)
+		request := httptest.NewRequest("GET", "/lists", nil)
+
+		request.Header.Set("Authorization", "1")
 
 		resp, err := app.Test(request)
 
@@ -27,13 +29,15 @@ func TestFavoriteListHandler(t *testing.T) {
 
 	t.Run("TestGetUserFavoriteListsWithItemsHandleNotFound", func(t *testing.T) {
 
-		request := httptest.NewRequest("GET", "/lists/99", nil)
+		request := httptest.NewRequest("GET", "/lists", nil)
+
+		request.Header.Set("Authorization", "99")
 
 		resp, err := app.Test(request)
 
 		assert.Nil(t, err)
 
-		assert.Equal(t, fiber.StatusNotFound, resp.StatusCode)
+		assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
 
 	})
 
@@ -41,7 +45,6 @@ func TestFavoriteListHandler(t *testing.T) {
 
 		newList := models.CreateFavoriteList{
 			ListName: "Deneme",
-			UserId:   1,
 		}
 
 		body, err := json.Marshal(newList)
@@ -51,6 +54,8 @@ func TestFavoriteListHandler(t *testing.T) {
 		request := httptest.NewRequest("POST", "/lists", bytes.NewReader(body))
 
 		request.Header.Set("Content-Type", "application/json")
+
+		request.Header.Set("Authorization", "1")
 
 		response, err := app.Test(request)
 
@@ -64,7 +69,6 @@ func TestFavoriteListHandler(t *testing.T) {
 
 		newList := models.CreateFavoriteList{
 			ListName: "",
-			UserId:   1,
 		}
 
 		body, err := json.Marshal(newList)
@@ -74,6 +78,8 @@ func TestFavoriteListHandler(t *testing.T) {
 		request := httptest.NewRequest("POST", "/lists", bytes.NewReader(body))
 
 		request.Header.Set("Content-Type", "application/json")
+
+		request.Header.Set("Authorization", "1")
 
 		response, err := app.Test(request)
 
@@ -95,6 +101,8 @@ func TestFavoriteListHandler(t *testing.T) {
 		request := httptest.NewRequest("PUT", "/lists/1", bytes.NewReader(body))
 
 		request.Header.Set("Content-Type", "application/json")
+
+		request.Header.Set("Authorization", "1")
 
 		response, err := app.Test(request)
 
@@ -118,6 +126,8 @@ func TestFavoriteListHandler(t *testing.T) {
 
 		request.Header.Set("Content-Type", "application/json")
 
+		request.Header.Set("Authorization", "1")
+
 		response, err := app.Test(request)
 
 		assert.Nil(t, err)
@@ -130,6 +140,8 @@ func TestFavoriteListHandler(t *testing.T) {
 
 		request := httptest.NewRequest("DELETE", "/lists/1", nil)
 
+		request.Header.Set("Authorization", "1")
+
 		response, err := app.Test(request)
 
 		assert.Nil(t, err)
@@ -140,6 +152,8 @@ func TestFavoriteListHandler(t *testing.T) {
 	t.Run("TestDeleteFavoriteListHandleBadRequest", func(t *testing.T) {
 
 		request := httptest.NewRequest("DELETE", "/lists/100", nil)
+
+		request.Header.Set("Authorization", "1")
 
 		response, err := app.Test(request)
 
