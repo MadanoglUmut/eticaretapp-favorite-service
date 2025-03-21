@@ -19,21 +19,24 @@ import (
 
 var app *fiber.App = fiber.New()
 
+var ctx context.Context = context.Background()
+
 type TestDB struct {
 	DB        *gorm.DB
 	Container testcontainers.Container
 }
 
 type HandlerSetup struct {
-	DB             *gorm.DB
-	App            *fiber.App
-	MockUserClient *MockUserClient
+	DB                *gorm.DB
+	App               *fiber.App
+	MockUserClient    *MockUserClient
+	MockProductClient *MockProductClient
 }
 
 func (h *HandlerSetup) SetupTestItemHandler() {
 	itemRepository := repositories.NewFavoriteItemRepository(h.DB)
 	listRepository := repositories.NewFavoriteListRepository(h.DB)
-	itemService := services.NewFavoriItemService(itemRepository, listRepository)
+	itemService := services.NewFavoriItemService(itemRepository, listRepository, h.MockProductClient, h.MockUserClient)
 	itemHandler := NewFavoriteItemHandler(itemService)
 	itemHandler.SetRoutes(h.App)
 }
@@ -41,13 +44,13 @@ func (h *HandlerSetup) SetupTestItemHandler() {
 func (h *HandlerSetup) SetupListHandler() {
 	listRepository := repositories.NewFavoriteListRepository(h.DB)
 	itemRepository := repositories.NewFavoriteItemRepository(h.DB)
-	favoriteListService := services.NewFavoriteListService(listRepository, itemRepository, h.MockUserClient)
+	favoriteListService := services.NewFavoriteListService(listRepository, itemRepository, h.MockProductClient, h.MockUserClient)
 	favoriteListHandler := NewFavoriteListHandler(favoriteListService)
 	favoriteListHandler.SetRoutes(h.App)
 }
 
 func (t *TestDB) Setup() error {
-	ctx := context.Background()
+	//ctx := context.Background()
 
 	dbConfig := map[string]string{
 		"POSTGRES_USER":     "user",
@@ -101,15 +104,41 @@ func (t *TestDB) CleanUp() {
 	t.Container.Terminate(context.Background())
 }
 
+type MockProductClient struct{}
+
+func (m *MockProductClient) VerifyProduct(ctx context.Context, productId int) (*models.Product, error) {
+
+	if productId == 1 {
+		return &models.Product{
+			ID:    1,
+			Name:  "Telefon",
+			Price: 1599,
+			Stock: 50}, nil
+	} else if productId == 99 {
+		return &models.Product{}, models.ErrRecordNotFound
+	}
+	return &models.Product{}, nil
+
+}
+
 type MockUserClient struct{}
 
-func (m *MockUserClient) CheckUserId(userId int) error {
-	if userId == 1 {
-		return nil
-	} else if userId == 99 {
-		return models.ErrRecordNotFound
+func (m *MockUserClient) VerifyUser(token string, ctx context.Context) (*models.Users, error) {
+
+	if token == "1" {
+		return &models.Users{
+			ID:       1,
+			Email:    "ahmet.yilmaz@example.com",
+			Password: "sifre123",
+			Isim:     "Ahmet",
+			Soyisim:  "Yılmaz",
+			Resim:    "https://example.com/resim1.jpg"}, nil
+	} else if token == "99" {
+		return &models.Users{}, models.ErrUserUnauthorized
 	}
-	return nil
+
+	return &models.Users{}, models.ErrUserUnauthorized
+
 }
 
 func TestMain(m *testing.M) {
