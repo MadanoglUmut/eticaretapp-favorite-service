@@ -15,7 +15,9 @@ func TestFavoriteItemHandler(t *testing.T) {
 
 	t.Run("", func(t *testing.T) {
 
-		request := httptest.NewRequest("GET", "/items/2", nil)
+		request := httptest.NewRequest("GET", "/items/1", nil)
+
+		request.Header.Set("Authorization", "1")
 
 		response, err := app.Test(request)
 
@@ -27,13 +29,15 @@ func TestFavoriteItemHandler(t *testing.T) {
 
 	t.Run("TestGetFavoriteItemHandleNotFound", func(t *testing.T) {
 
-		request := httptest.NewRequest("GET", "/items/:99", nil)
+		request := httptest.NewRequest("GET", "/items/999", nil)
+
+		request.Header.Set("Authorization", "1")
 
 		response, err := app.Test(request)
 
 		assert.Nil(t, err)
 
-		assert.Equal(t, fiber.StatusBadRequest, response.StatusCode)
+		assert.Equal(t, fiber.StatusInternalServerError, response.StatusCode)
 
 	})
 
@@ -41,7 +45,7 @@ func TestFavoriteItemHandler(t *testing.T) {
 
 		newItems := models.CreateFavoriteItem{
 			ItemId: 10,
-			ListId: 2,
+			ListId: 1,
 		}
 
 		body, err := json.Marshal(newItems)
@@ -51,6 +55,8 @@ func TestFavoriteItemHandler(t *testing.T) {
 		request := httptest.NewRequest("POST", "/items", bytes.NewReader(body))
 
 		request.Header.Set("Content-Type", "application/json")
+
+		request.Header.Set("Authorization", "1")
 
 		response, err := app.Test(request)
 
@@ -75,6 +81,8 @@ func TestFavoriteItemHandler(t *testing.T) {
 
 		request.Header.Set("Content-Type", "application/json")
 
+		request.Header.Set("Authorization", "1")
+
 		response, err := app.Test(request)
 
 		assert.Nil(t, err)
@@ -86,6 +94,8 @@ func TestFavoriteItemHandler(t *testing.T) {
 	t.Run("TestDeleteFavoriteItemHandle", func(t *testing.T) {
 
 		request := httptest.NewRequest("DELETE", "/items/1/item?itemId=1", nil)
+
+		request.Header.Set("Authorization", "1")
 
 		response, err := app.Test(request)
 
@@ -102,7 +112,7 @@ func TestFavoriteItemHandler(t *testing.T) {
 
 		assert.Nil(t, err)
 
-		assert.Equal(t, fiber.StatusInternalServerError, response.StatusCode)
+		assert.Equal(t, fiber.StatusUnauthorized, response.StatusCode)
 	})
 
 }
