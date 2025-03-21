@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"favorite_service/internal/models"
 	"strconv"
 
@@ -11,9 +12,9 @@ import (
 )
 
 type favoriteItemService interface {
-	GetFavoriteItem(listId int, userId int) ([]models.FavoriteItem, error)
-	CreateFavoriteItem(item models.CreateFavoriteItem, userId int) (models.FavoriteItem, error)
-	DeleteFavoriteItem(listId int, itemId int) error
+	GetFavoriteItem(listId int, token string, ctx context.Context) ([]models.Product, error)
+	CreateFavoriteItem(item models.CreateFavoriteItem, token string, ctx context.Context) (models.FavoriteItem, error)
+	DeleteFavoriteItem(listId int, itemId int, token string, ctx context.Context) error
 }
 
 type FavoriteItemHandler struct {
@@ -31,25 +32,30 @@ func (h *FavoriteItemHandler) GetFavoriteItemHandle(c *fiber.Ctx) error {
 	listId, err := c.ParamsInt("listId")
 
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{Error: "List Id Bulunamadi", Details: err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{
+			Error:   "List Id Bulunamadi",
+			Details: err.Error()},
+		)
 	}
 
-	userIdStr := c.Query("userId")
+	autHeader := c.Get("Authorization")
 
-	if userIdStr == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{Error: "Query Parametre Hatasi", Details: "Query Parametresi Zorunlu"})
+	if autHeader == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(models.ErorResponse{
+			Error:   "Token Authorization Hatasi",
+			Details: "Token",
+		})
 	}
 
-	userId, err := strconv.Atoi(userIdStr)
+	ctx := c.UserContext()
+
+	itemList, err := h.favoriteItemService.GetFavoriteItem(listId, autHeader, ctx)
 
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{Error: "User Id Tip Dönüşüm Hatasi", Details: err.Error()})
-	}
-
-	itemList, err := h.favoriteItemService.GetFavoriteItem(listId, userId)
-
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(models.ErorResponse{Error: "Servis Hatası", Details: err.Error()})
+		return c.Status(fiber.StatusInternalServerError).JSON(models.ErorResponse{
+			Error:   "Servis Hatası",
+			Details: err.Error()},
+		)
 	}
 
 	return c.Status(fiber.StatusOK).JSON(models.SuccesResponse{SuccesData: itemList})
@@ -61,31 +67,40 @@ func (h *FavoriteItemHandler) CreateFavoriteItemHandle(c *fiber.Ctx) error {
 	newItem := models.CreateFavoriteItem{}
 
 	if err := c.BodyParser(&newItem); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{Error: "Body Parse Hatasi", Details: err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{
+			Error:   "Body Parse Hatasi",
+			Details: err.Error()},
+		)
 	}
 
 	err := newItem.Validate()
 
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{Error: "Validate Hatasi", Details: err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{
+			Error:   "Validate Hatasi",
+			Details: err.Error()},
+		)
 	}
 
-	userIdStr := c.Query("userId")
+	autHeader := c.Get("Authorization")
 
-	if userIdStr == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{Error: "Query Parametre Hatasi", Details: "Query Parametresi Zorunlu"})
+	if autHeader == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(models.ErorResponse{
+			Error:   "Token Authorization Hatasi",
+			Details: "Token"},
+		)
 	}
 
-	userId, err := strconv.Atoi(userIdStr)
+	ctx := c.UserContext()
+
+	favoriteItem, err := h.favoriteItemService.CreateFavoriteItem(newItem, autHeader, ctx)
 
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{Error: "User Id Tip Dönüşüm Hatasi", Details: err.Error()})
-	}
 
-	favoriteItem, err := h.favoriteItemService.CreateFavoriteItem(newItem, userId)
-
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(models.ErorResponse{Error: "Servis Hatasi", Details: err.Error()})
+		return c.Status(fiber.StatusInternalServerError).JSON(models.ErorResponse{
+			Error:   "Servis Hatasi",
+			Details: err.Error()},
+		)
 	}
 
 	return c.Status(fiber.StatusOK).JSON(models.SuccesResponse{SuccesData: favoriteItem})
@@ -97,23 +112,46 @@ func (h *FavoriteItemHandler) DeleteFavoriteItemHandle(c *fiber.Ctx) error {
 	listId, err := c.ParamsInt("listId")
 
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{Error: "Parametre Hatasi", Details: err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{
+			Error:   "Parametre Hatasi",
+			Details: err.Error()},
+		)
 	}
 
 	itemIdStr := c.Query("itemId")
 	if itemIdStr == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{Error: "Query Parametre Hatasi", Details: "Query Param Zorunlu"})
+		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{
+			Error:   "Query Parametre Hatasi",
+			Details: "Query Param Zorunlu"},
+		)
 	}
 
 	itemId, err := strconv.Atoi(itemIdStr)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{Error: "Item Id Tip Dönüşüm Hatasi", Details: err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{
+			Error:   "Item Id Tip Dönüşüm Hatasi",
+			Details: err.Error()},
+		)
 	}
 
-	err = h.favoriteItemService.DeleteFavoriteItem(listId, itemId)
+	autHeader := c.Get("Authorization")
+
+	if autHeader == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(models.ErorResponse{
+			Error:   "Token Authorization Hatasi",
+			Details: "Token"},
+		)
+	}
+
+	ctx := c.UserContext()
+
+	err = h.favoriteItemService.DeleteFavoriteItem(listId, itemId, autHeader, ctx)
 
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(models.ErorResponse{Error: "Servis Hatasi", Details: err.Error()})
+		return c.Status(fiber.StatusInternalServerError).JSON(models.ErorResponse{
+			Error:   "Servis Hatasi",
+			Details: err.Error()},
+		)
 	}
 
 	return c.Status(fiber.StatusOK).JSON(models.SuccesResponse{SuccesData: nil})
@@ -124,8 +162,8 @@ func (h *FavoriteItemHandler) SetRoutes(app *fiber.App) {
 
 	itemGroup := app.Group("/items")
 
-	itemGroup.Get("/:listId/user", h.GetFavoriteItemHandle)
-	itemGroup.Post("/user", h.CreateFavoriteItemHandle)
+	itemGroup.Get("/:listId", h.GetFavoriteItemHandle)
+	itemGroup.Post("", h.CreateFavoriteItemHandle)
 	itemGroup.Delete("/:listId/item", h.DeleteFavoriteItemHandle)
 
 }
@@ -134,19 +172,19 @@ func ItemGetEndpoints() []*endpoint.EndPoint {
 	return []*endpoint.EndPoint{
 		endpoint.New(
 			endpoint.GET,
-			"/items/{listId}/user",
+			"/items/{listId}",
 			endpoint.WithTags("item"),
 			endpoint.WithParams(parameter.IntParam("listId", parameter.Path, parameter.WithRequired())),
-			endpoint.WithParams(parameter.IntParam("userId", parameter.Query, parameter.WithRequired())),
-			endpoint.WithSuccessfulReturns([]response.Response{response.New(models.FavoriteItem{}, "200", "OK")}),
+			endpoint.WithParams(parameter.StrParam("Authorization", parameter.Header, parameter.WithRequired())),
+			endpoint.WithSuccessfulReturns([]response.Response{response.New([]models.Product{}, "200", "OK")}),
 			endpoint.WithErrors([]response.Response{response.New(models.ErorResponse{}, "400", "Bad Request")}),
 		),
 
 		endpoint.New(
 			endpoint.POST,
-			"/items/user",
+			"/items",
 			endpoint.WithTags("item"),
-			endpoint.WithParams(parameter.IntParam("userId", parameter.Query, parameter.WithRequired())),
+			endpoint.WithParams(parameter.StrParam("Authorization", parameter.Header, parameter.WithRequired())),
 			endpoint.WithBody(models.CreateFavoriteItem{}),
 			endpoint.WithSuccessfulReturns([]response.Response{response.New(models.FavoriteItem{}, "200", "OK")}),
 			endpoint.WithErrors([]response.Response{response.New(models.ErorResponse{}, "400", "Bad Request")}),
@@ -158,7 +196,8 @@ func ItemGetEndpoints() []*endpoint.EndPoint {
 			endpoint.WithTags("item"),
 			endpoint.WithParams(parameter.IntParam("listId", parameter.Path, parameter.WithRequired())),
 			endpoint.WithParams(parameter.IntParam("itemId", parameter.Query, parameter.WithRequired())),
-			endpoint.WithSuccessfulReturns([]response.Response{response.New(models.FavoriteItem{}, "200", "OK")}),
+			endpoint.WithParams(parameter.StrParam("Authorization", parameter.Header, parameter.WithRequired())),
+			endpoint.WithSuccessfulReturns([]response.Response{response.New(models.SuccesResponse{}, "200", "OK")}),
 			endpoint.WithErrors([]response.Response{response.New(models.ErorResponse{}, "400", "Bad Request")}),
 		),
 	}
