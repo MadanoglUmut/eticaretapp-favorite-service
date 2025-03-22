@@ -19,7 +19,7 @@ func TestListRepository(t *testing.T) {
 
 	t.Run("TestCreateFavoriteList", func(t *testing.T) {
 
-		err := favoriteListRepository.CreateFavoriteList(&cFavoriteList)
+		err := favoriteListRepository.CreateFavoriteList(ctx, &cFavoriteList)
 
 		assert.Nil(t, err)
 
@@ -33,7 +33,7 @@ func TestListRepository(t *testing.T) {
 
 	t.Run("TestGetFavoriteListIf", func(t *testing.T) {
 
-		fetchedFavoriteItemList, err := favoriteListRepository.GetFavoriteList(cFavoriteList.UserId)
+		fetchedFavoriteItemList, err := favoriteListRepository.GetFavoriteList(ctx, cFavoriteList.UserId)
 
 		assert.Nil(t, err)
 
@@ -58,7 +58,7 @@ func TestListRepository(t *testing.T) {
 
 	t.Run("TestGetFavoriteList", func(t *testing.T) {
 
-		fetchedFavoriteLists, err := favoriteListRepository.GetFavoriteList(cFavoriteList.UserId)
+		fetchedFavoriteLists, err := favoriteListRepository.GetFavoriteList(ctx, cFavoriteList.UserId)
 
 		assert.Nil(t, err)
 
@@ -78,7 +78,7 @@ func TestListRepository(t *testing.T) {
 			ListName: "UpdateDeneme",
 		}
 
-		updatedFavoriteList, err := favoriteListRepository.UpdateFavoriteList(cFavoriteList.Id, updatedList)
+		updatedFavoriteList, err := favoriteListRepository.UpdateFavoriteList(ctx, cFavoriteList.Id, updatedList)
 
 		assert.Nil(t, err)
 
@@ -89,11 +89,11 @@ func TestListRepository(t *testing.T) {
 	})
 
 	t.Run("TestDeleteFavoriteList", func(t *testing.T) {
-		err := favoriteListRepository.DeleteFavoriteList(cFavoriteList.Id)
+		err := favoriteListRepository.DeleteFavoriteList(ctx, cFavoriteList.Id)
 
 		assert.Nil(t, err)
 
-		newFavoriteLists, err := favoriteListRepository.GetFavoriteList(cFavoriteList.Id)
+		newFavoriteLists, err := favoriteListRepository.GetFavoriteList(ctx, cFavoriteList.Id)
 
 		assert.Nil(t, err)
 
@@ -107,13 +107,13 @@ func TestListRepository(t *testing.T) {
 	})
 
 	t.Run("TestDeleteFavoriteListAgain", func(t *testing.T) {
-		err := favoriteListRepository.DeleteFavoriteList(cFavoriteList.Id)
+		err := favoriteListRepository.DeleteFavoriteList(ctx, cFavoriteList.Id)
 
 		fmt.Println(models.ErrRecordNotFound, err)
 
 		assert.Equal(t, models.ErrRecordNotFound, err)
 
-		err = favoriteListRepository.DeleteFavoriteList(888)
+		err = favoriteListRepository.DeleteFavoriteList(ctx, 888)
 
 		fmt.Println(models.ErrRecordNotFound, err)
 
