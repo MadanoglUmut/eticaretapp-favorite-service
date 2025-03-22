@@ -1,6 +1,7 @@
 package repositories
 
 import (
+	"context"
 	"favorite_service/internal/models"
 
 	"gorm.io/gorm"
@@ -17,11 +18,11 @@ func NewFavoriteItemRepository(db *gorm.DB) *FavoriteItemRepository {
 
 }
 
-func (r *FavoriteItemRepository) GetFavoriteItem(listId int) ([]models.FavoriteItem, error) {
+func (r *FavoriteItemRepository) GetFavoriteItem(ctx context.Context, listId int) ([]models.FavoriteItem, error) {
 
 	var favoriteItems []models.FavoriteItem
 
-	if err := r.db.Table("favoriteitem").Debug().Where("listid = ?", listId).Find(&favoriteItems).Error; err != nil {
+	if err := r.db.WithContext(ctx).Table("favoriteitem").Debug().Where("listid = ?", listId).Find(&favoriteItems).Error; err != nil {
 		return nil, err
 	}
 
@@ -29,14 +30,14 @@ func (r *FavoriteItemRepository) GetFavoriteItem(listId int) ([]models.FavoriteI
 
 }
 
-func (r *FavoriteItemRepository) CreateFavoriteItem(favoriteItem models.CreateFavoriteItem) (models.FavoriteItem, error) {
+func (r *FavoriteItemRepository) CreateFavoriteItem(ctx context.Context, favoriteItem models.CreateFavoriteItem) (models.FavoriteItem, error) {
 
 	newFavoriteItem := models.FavoriteItem{
 		ItemId: favoriteItem.ItemId,
 		ListId: favoriteItem.ListId,
 	}
 
-	if err := r.db.Table("favoriteitem").Create(&newFavoriteItem).Error; err != nil {
+	if err := r.db.WithContext(ctx).Table("favoriteitem").Create(&newFavoriteItem).Error; err != nil {
 		return models.FavoriteItem{}, err
 	}
 
@@ -44,9 +45,9 @@ func (r *FavoriteItemRepository) CreateFavoriteItem(favoriteItem models.CreateFa
 
 }
 
-func (r *FavoriteItemRepository) DeleteFavoriteItem(listId int, itemId int) error {
+func (r *FavoriteItemRepository) DeleteFavoriteItem(ctx context.Context, listId int, itemId int) error {
 
-	result := r.db.Table("favoriteitem").Where("listid = ? AND itemid = ?", listId, itemId).Delete(&models.FavoriteItem{})
+	result := r.db.WithContext(ctx).Table("favoriteitem").Where("listid = ? AND itemid = ?", listId, itemId).Delete(&models.FavoriteItem{})
 
 	if result.Error != nil {
 		return result.Error
@@ -60,9 +61,9 @@ func (r *FavoriteItemRepository) DeleteFavoriteItem(listId int, itemId int) erro
 
 }
 
-func (r *FavoriteItemRepository) DeleteFavoriteItemsByListId(listId int) error {
+func (r *FavoriteItemRepository) DeleteFavoriteItemsByListId(ctx context.Context, listId int) error {
 
-	result := r.db.Table("favoriteitem").Where("listid = ?", listId).Delete(&models.FavoriteItem{})
+	result := r.db.WithContext(ctx).Table("favoriteitem").Where("listid = ?", listId).Delete(&models.FavoriteItem{})
 
 	if result.Error != nil {
 		return result.Error
