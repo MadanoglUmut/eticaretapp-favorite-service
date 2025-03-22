@@ -15,6 +15,7 @@ import (
 	"github.com/go-swagno/swagno-fiber/swagger"
 	"github.com/gofiber/fiber/v2"
 	"github.com/joho/godotenv"
+	"github.com/sony/gobreaker"
 )
 
 func main() {
@@ -46,15 +47,29 @@ func main() {
 
 	productClient := client.NewProductClient(productServiceURL, 3, 2*time.Second)
 
-	itemService := services.NewFavoriItemService(itemRepository, listRepository, productClient)
+	cb := gobreaker.NewCircuitBreaker(gobreaker.Settings{
+		Name:        "UserServiceCircuitBreaker",
+		MaxRequests: 5,
+		Interval:    10 * time.Second,
+		Timeout:     20 * time.Second,
+		ReadyToTrip: func(counts gobreaker.Counts) bool {
+			return counts.ConsecutiveFailures > 3
+		},
+
+		OnStateChange: func(name string, from gobreaker.State, to gobreaker.State) {
+			fmt.Printf("Circuit Breaker '%s' changed from '%s' to '%s'\n", name, from, to)
+		},
+	})
+
+	userClient := client.NewUserClient(userServiceURL, cb)
+
+	itemService := services.NewFavoriItemService(itemRepository, listRepository, productClient, userClient)
+
+	listService := services.NewFavoriteListService(listRepository, itemRepository, productClient, userClient)
 
 	itemHandler := handlers.NewFavoriteItemHandler(itemService)
 
 	itemHandler.SetRoutes(app)
-
-	userClient := client.NewUserClient(userServiceURL)
-
-	listService := services.NewFavoriteListService(listRepository, itemRepository, productClient, userClient)
 
 	listHandler := handlers.NewFavoriteListHandler(listService)
 
