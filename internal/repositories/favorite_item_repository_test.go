@@ -19,7 +19,7 @@ func TestItemRepository(t *testing.T) {
 
 	t.Run("TestCreateFavoriteItem", func(t *testing.T) {
 
-		favoriteItem, err := favoriteItemRepository.CreateFavoriteItem(cFavoriteItem)
+		favoriteItem, err := favoriteItemRepository.CreateFavoriteItem(ctx, cFavoriteItem)
 
 		assert.Nil(t, err)
 
@@ -28,7 +28,7 @@ func TestItemRepository(t *testing.T) {
 
 	t.Run("TestGetFavoriteItem", func(t *testing.T) {
 
-		fetchedFavoriteItemList, err := favoriteItemRepository.GetFavoriteItem(cFavoriteItem.ListId)
+		fetchedFavoriteItemList, err := favoriteItemRepository.GetFavoriteItem(ctx, cFavoriteItem.ListId)
 
 		assert.Nil(t, err)
 
@@ -53,7 +53,7 @@ func TestItemRepository(t *testing.T) {
 
 	t.Run("TestGetFavoriteItemLıstId", func(t *testing.T) {
 
-		fetchedFavoriteItemList, err := favoriteItemRepository.GetFavoriteItem(cFavoriteItem.ListId)
+		fetchedFavoriteItemList, err := favoriteItemRepository.GetFavoriteItem(ctx, cFavoriteItem.ListId)
 
 		assert.Nil(t, err)
 
@@ -69,11 +69,11 @@ func TestItemRepository(t *testing.T) {
 
 	t.Run("TestDeleteFavoriteItem", func(t *testing.T) {
 
-		err := favoriteItemRepository.DeleteFavoriteItem(cFavoriteItem.ListId, cFavoriteItem.ItemId)
+		err := favoriteItemRepository.DeleteFavoriteItem(ctx, cFavoriteItem.ListId, cFavoriteItem.ItemId)
 
 		assert.Nil(t, err)
 
-		newItemList, err := favoriteItemRepository.GetFavoriteItem(cFavoriteItem.ListId)
+		newItemList, err := favoriteItemRepository.GetFavoriteItem(ctx, cFavoriteItem.ListId)
 
 		assert.Nil(t, err)
 
@@ -89,14 +89,14 @@ func TestItemRepository(t *testing.T) {
 
 	t.Run("TestDeleteFavoriteItemsByListId", func(t *testing.T) {
 
-		err := favoriteItemRepository.DeleteFavoriteItemsByListId(cFavoriteItem.ListId)
+		err := favoriteItemRepository.DeleteFavoriteItemsByListId(ctx, cFavoriteItem.ListId)
 
 		assert.Nil(t, err)
 
 	})
 
 	t.Run("Deneme", func(t *testing.T) {
-		err := favoriteItemRepository.DeleteFavoriteItemsByListId(cFavoriteItem.ListId)
+		err := favoriteItemRepository.DeleteFavoriteItemsByListId(ctx, cFavoriteItem.ListId)
 
 		fmt.Println(models.ErrRecordNotFound, err)
 
