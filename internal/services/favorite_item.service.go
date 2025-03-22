@@ -1,83 +1,124 @@
 package services
 
 import (
+	"context"
 	"favorite_service/internal/models"
 	"sync"
 )
 
 type favoriItemRepository interface {
-	GetFavoriteItem(listId int) ([]models.FavoriteItem, error)
-	CreateFavoriteItem(favoriteItem models.CreateFavoriteItem) (models.FavoriteItem, error)
-	DeleteFavoriteItem(listId int, itemId int) error
+	GetFavoriteItem(ctx context.Context, listId int) ([]models.FavoriteItem, error)
+	CreateFavoriteItem(ctx context.Context, favoriteItem models.CreateFavoriteItem) (models.FavoriteItem, error)
+	DeleteFavoriteItem(ctx context.Context, listId int, itemId int) error
 }
 
 type listRepository interface {
-	GetListOwner(listId int) (models.FavoriteList, error)
+	GetListOwner(ctx context.Context, listId int) (models.FavoriteList, error)
 }
 
 type favoriteItemProductClient interface {
-	VerifyProduct(productId int) (*models.Product, error)
+	VerifyProduct(ctx context.Context, productId int) (*models.Product, error)
+}
+
+type favoriteItemUserClient interface {
+	VerifyUser(token string, ctx context.Context) (*models.Users, error)
 }
 
 type FavoriItemService struct {
 	favoriItemRepository favoriItemRepository
 	listRepository       listRepository
 	productClient        favoriteItemProductClient
+	userClient           favoriteItemUserClient
 }
 
 func NewFavoriItemService(favoriItemRepository favoriItemRepository, lislistRepository listRepository,
-	productClient favoriteItemProductClient) *FavoriItemService {
+	productClient favoriteItemProductClient, userClient favoriteItemUserClient) *FavoriItemService {
 	return &FavoriItemService{
 		favoriItemRepository: favoriItemRepository,
 		listRepository:       lislistRepository,
 		productClient:        productClient,
+		userClient:           userClient,
 	}
 }
 
-func (s *FavoriItemService) GetFavoriteItem(listId int, userId int) ([]models.Product, error) {
+func (s *FavoriItemService) GetFavoriteItem(listId int, token string, ctx context.Context) ([]models.Product, error) {
 
-	ownerFavoriteList, err := s.listRepository.GetListOwner(listId)
+	user, err := s.userClient.VerifyUser(token, ctx)
 
 	if err != nil {
 		return nil, err
 	}
 
-	if ownerFavoriteList.UserId != userId {
+	ownerFavoriteList, err := s.listRepository.GetListOwner(ctx, listId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if ownerFavoriteList.UserId != user.ID {
 
 		return nil, models.ErrunaUthorizedAction
 
 	}
 
-	favoriteItems, err := s.favoriItemRepository.GetFavoriteItem(listId)
+	favoriteItems, err := s.favoriItemRepository.GetFavoriteItem(ctx, listId)
 	if err != nil {
 		return nil, err
 	}
 
-	return GetProductInfo(favoriteItems, s.productClient)
+	return GetProductInfo(ctx, favoriteItems, s.productClient)
 
 }
 
-func (s *FavoriItemService) CreateFavoriteItem(item models.CreateFavoriteItem, userId int) (models.FavoriteItem, error) {
+func (s *FavoriItemService) CreateFavoriteItem(item models.CreateFavoriteItem, token string, ctx context.Context) (models.FavoriteItem, error) {
 
-	ownerFavoriteList, err := s.listRepository.GetListOwner(item.ListId)
+	user, err := s.userClient.VerifyUser(token, ctx)
+
+	if err != nil {
+
+		return models.FavoriteItem{}, err
+
+	}
+
+	ownerFavoriteList, err := s.listRepository.GetListOwner(ctx, item.ListId)
 
 	if err != nil {
 		return models.FavoriteItem{}, err
+
 	}
 
-	if ownerFavoriteList.UserId != userId {
+	if ownerFavoriteList.UserId != user.ID {
 		return models.FavoriteItem{}, models.ErrunaUthorizedAction
+
 	}
 
-	return s.favoriItemRepository.CreateFavoriteItem(item)
+	return s.favoriItemRepository.CreateFavoriteItem(ctx, item)
 }
 
-func (s *FavoriItemService) DeleteFavoriteItem(listId int, itemId int) error {
-	return s.favoriItemRepository.DeleteFavoriteItem(listId, itemId)
+func (s *FavoriItemService) DeleteFavoriteItem(listId int, itemId int, token string, ctx context.Context) error {
+
+	user, err := s.userClient.VerifyUser(token, ctx)
+
+	if err != nil {
+		return err
+	}
+
+	ownerFavoriteList, err := s.listRepository.GetListOwner(ctx, listId)
+
+	if err != nil {
+		return err
+	}
+
+	if ownerFavoriteList.UserId != user.ID {
+
+		return models.ErrunaUthorizedAction
+
+	}
+
+	return s.favoriItemRepository.DeleteFavoriteItem(ctx, listId, itemId)
 }
 
-func GetProductInfo(items []models.FavoriteItem, productClinet favoriteItemProductClient) ([]models.Product, error) {
-
+func GetProductInfo(ctx context.Context, items []models.FavoriteItem, productClient favoriteItemProductClient) ([]models.Product, error) {
 	var products []models.Product
 	var wg sync.WaitGroup
 	productChan := make(chan *models.Product, 2)
@@ -88,32 +129,35 @@ func GetProductInfo(items []models.FavoriteItem, productClinet favoriteItemProdu
 	go func() {
 		defer wg.Done()
 		for _, item := range items {
-			wg.Add(1)
-			sm <- struct{}{}
-			go func(itemId int) {
-				defer wg.Done()
-				defer func() { <-sm }()
-				product, err := productClinet.VerifyProduct(item.ItemId)
-				if err != nil {
-					errChan <- err
-					return
-				}
-				productChan <- product
-			}(item.ItemId)
+			select {
+			case <-ctx.Done():
+				errChan <- ctx.Err()
+				return
+			default:
+				wg.Add(1)
+				sm <- struct{}{}
+				go func(itemId int) {
+					defer wg.Done()
+					defer func() { <-sm }()
+					product, err := productClient.VerifyProduct(ctx, item.ItemId)
+					if err != nil {
+						errChan <- err
+						return
+					}
+					productChan <- product
+				}(item.ItemId)
+			}
 
 			if len(errChan) > 0 {
 				break
-
 			}
 		}
-
 	}()
 
 	go func() {
 		wg.Wait()
 		close(errChan)
 		close(productChan)
-
 	}()
 
 	for product := range productChan {
@@ -125,5 +169,4 @@ func GetProductInfo(items []models.FavoriteItem, productClinet favoriteItemProdu
 	}
 
 	return products, nil
-
 }

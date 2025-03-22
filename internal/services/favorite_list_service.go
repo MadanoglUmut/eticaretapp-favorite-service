@@ -1,28 +1,29 @@
 package services
 
 import (
+	"context"
 	"favorite_service/internal/models"
 )
 
 type favoriteListRepository interface {
-	GetFavoriteList(userId int) ([]models.FavoriteList, error)
-	CreateFavoriteList(favoriteList *models.FavoriteList) error
-	UpdateFavoriteList(id int, updtList models.UpdateFavoriteList) (models.FavoriteList, error)
-	DeleteFavoriteList(listId int) error
-	GetListOwner(listId int) (models.FavoriteList, error)
+	GetFavoriteList(ctx context.Context, userId int) ([]models.FavoriteList, error)
+	CreateFavoriteList(ctx context.Context, favoriteList *models.FavoriteList) error
+	UpdateFavoriteList(ctx context.Context, listId int, updtList models.UpdateFavoriteList) (models.FavoriteList, error)
+	DeleteFavoriteList(ctx context.Context, listId int) error
+	GetListOwner(ctx context.Context, listId int) (models.FavoriteList, error)
 }
 
 type favoriteItemRepository interface {
-	GetFavoriteItem(listId int) ([]models.FavoriteItem, error)
-	DeleteFavoriteItemsByListId(listId int) error
+	GetFavoriteItem(ctx context.Context, listId int) ([]models.FavoriteItem, error)
+	DeleteFavoriteItemsByListId(ctx context.Context, listId int) error
 }
 
 type favoriteListProductClient interface {
-	VerifyProduct(productId int) (*models.Product, error)
+	VerifyProduct(ctx context.Context, productId int) (*models.Product, error)
 }
 
 type favoriteListUserClient interface {
-	VerifyUser(token string) (*models.Users, error)
+	VerifyUser(token string, ctx context.Context) (*models.Users, error)
 }
 
 type FavoriteListService struct {
@@ -46,9 +47,13 @@ func NewFavoriteListService(
 	}
 }
 
-func (s *FavoriteListService) GetUserFavoriteListsWithItems(token string) ([]models.FavoriteListResponse, error) {
+func (s *FavoriteListService) GetUserFavoriteListsWithItems(token string, ctx context.Context) ([]models.FavoriteListResponse, error) {
 
-	user, err := s.favoriteListUserClient.VerifyUser(token)
+	//ctx, cancel := context.WithTimeout(ctx, time.Second*5)
+
+	//defer cancel()
+
+	user, err := s.favoriteListUserClient.VerifyUser(token, ctx)
 
 	if err != nil {
 		return nil, err
@@ -56,18 +61,18 @@ func (s *FavoriteListService) GetUserFavoriteListsWithItems(token string) ([]mod
 
 	var response []models.FavoriteListResponse
 
-	lists, err := s.listRepo.GetFavoriteList(user.ID)
+	lists, err := s.listRepo.GetFavoriteList(ctx, user.ID)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, list := range lists {
-		items, err := s.itemRepo.GetFavoriteItem(list.Id)
+		items, err := s.itemRepo.GetFavoriteItem(ctx, list.Id)
 		if err != nil {
 			return nil, err
 		}
 
-		products, err := GetProductInfo(items, s.favoriteListProductClient)
+		products, err := GetProductInfo(ctx, items, s.favoriteListProductClient)
 		if err != nil {
 			return nil, err
 		}
@@ -83,9 +88,9 @@ func (s *FavoriteListService) GetUserFavoriteListsWithItems(token string) ([]mod
 
 }
 
-func (s *FavoriteListService) CreateFavoriteList(list *models.FavoriteList, token string) error {
+func (s *FavoriteListService) CreateFavoriteList(list *models.FavoriteList, token string, ctx context.Context) error {
 
-	user, err := s.favoriteListUserClient.VerifyUser(token)
+	user, err := s.favoriteListUserClient.VerifyUser(token, ctx)
 
 	if err != nil {
 		return err
@@ -93,18 +98,18 @@ func (s *FavoriteListService) CreateFavoriteList(list *models.FavoriteList, toke
 
 	list.UserId = user.ID
 
-	return s.listRepo.CreateFavoriteList(list)
+	return s.listRepo.CreateFavoriteList(ctx, list)
 }
 
-func (s *FavoriteListService) UpdateFavoriteList(listId int, list models.UpdateFavoriteList, token string) (models.FavoriteList, error) {
+func (s *FavoriteListService) UpdateFavoriteList(listId int, list models.UpdateFavoriteList, token string, ctx context.Context) (models.FavoriteList, error) {
 
-	user, err := s.favoriteListUserClient.VerifyUser(token)
+	user, err := s.favoriteListUserClient.VerifyUser(token, ctx)
 
 	if err != nil {
 		return models.FavoriteList{}, err
 	}
 
-	ownerFavoriteList, err := s.listRepo.GetListOwner(listId)
+	ownerFavoriteList, err := s.listRepo.GetListOwner(ctx, listId)
 
 	if err != nil {
 		return models.FavoriteList{}, models.ErrunaUthorizedAction
@@ -114,18 +119,18 @@ func (s *FavoriteListService) UpdateFavoriteList(listId int, list models.UpdateF
 		return models.FavoriteList{}, models.ErrunaUthorizedAction
 	}
 
-	return s.listRepo.UpdateFavoriteList(listId, list)
+	return s.listRepo.UpdateFavoriteList(ctx, listId, list)
 }
 
-func (s *FavoriteListService) DeleteFavoriteList(listId int, token string) error {
+func (s *FavoriteListService) DeleteFavoriteList(listId int, token string, ctx context.Context) error {
 
-	user, err := s.favoriteListUserClient.VerifyUser(token)
+	user, err := s.favoriteListUserClient.VerifyUser(token, ctx)
 
 	if err != nil {
 		return err
 	}
 
-	ownerFavoriteList, err := s.listRepo.GetListOwner(listId)
+	ownerFavoriteList, err := s.listRepo.GetListOwner(ctx, listId)
 
 	if err != nil {
 		return err
@@ -137,9 +142,9 @@ func (s *FavoriteListService) DeleteFavoriteList(listId int, token string) error
 
 	}
 
-	if err := s.itemRepo.DeleteFavoriteItemsByListId(listId); err != nil {
+	if err := s.itemRepo.DeleteFavoriteItemsByListId(ctx, listId); err != nil {
 		return err
 	}
 
-	return s.listRepo.DeleteFavoriteList(listId)
+	return s.listRepo.DeleteFavoriteList(ctx, listId)
 }
