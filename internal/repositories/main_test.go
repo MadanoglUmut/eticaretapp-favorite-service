@@ -15,6 +15,8 @@ import (
 
 var db *gorm.DB
 
+var ctx context.Context = context.Background()
+
 func TestMain(m *testing.M) {
 
 	ctx := context.Background()
@@ -78,5 +80,3 @@ func TestMain(m *testing.M) {
 	}
 	os.Exit(m.Run())
 }
-
-//Clean Up ekle Test Main içinde
