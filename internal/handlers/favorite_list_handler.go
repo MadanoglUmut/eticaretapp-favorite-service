@@ -3,6 +3,8 @@ package handlers
 import (
 	"context"
 	"favorite_service/internal/models"
+	"favorite_service/logs"
+	"time"
 
 	"github.com/go-swagno/swagno/components/endpoint"
 	"github.com/go-swagno/swagno/components/http/response"
@@ -17,20 +19,36 @@ type favoriteListService interface {
 	DeleteFavoriteList(listId int, token string, ctx context.Context) error
 }
 
-type FavoriteListHandler struct {
-	favoriteListService favoriteListService
+type metrics interface {
+	ObserveHandler(name string, startTime time.Time, status int)
 }
 
-func NewFavoriteListHandler(favoriteListService favoriteListService) *FavoriteListHandler {
+type FavoriteListHandler struct {
+	favoriteListService favoriteListService
+	metrics             metrics
+}
+
+func NewFavoriteListHandler(favoriteListService favoriteListService, metrics metrics) *FavoriteListHandler {
 	return &FavoriteListHandler{
 		favoriteListService: favoriteListService,
+		metrics:             metrics,
 	}
 }
 
 func (h *FavoriteListHandler) GetUserFavoriteListsWithItemsHandle(c *fiber.Ctx) error {
 
+	defer func() {
+		h.metrics.ObserveHandler("FavoriteListHandler_GetFavoriteList", time.Now(), c.Response().StatusCode())
+	}()
+
 	authHeader := c.Get("Authorization")
 	if authHeader == "" {
+
+		logs.Warning("Token Authorization Hatasi",
+			logs.WithHandlerName("FavoriteListHandler_GetFavoriteList"),
+			logs.WithStatus(fiber.StatusUnauthorized),
+		)
+
 		return c.Status(fiber.StatusUnauthorized).JSON(models.ErorResponse{
 			Error:   "Token Authorization Hatasi",
 			Details: "Token"},
@@ -43,17 +61,34 @@ func (h *FavoriteListHandler) GetUserFavoriteListsWithItemsHandle(c *fiber.Ctx) 
 
 	if err != nil {
 		if err == models.ErrUserNotFound {
+
+			logs.Warning(err.Error(),
+				logs.WithHandlerName("FavoriteListHandler_GetFavoriteList"),
+				logs.WithStatus(fiber.StatusNotFound),
+			)
+
 			return c.Status(fiber.StatusNotFound).JSON(models.ErorResponse{
 				Error:   "Kullanıcı bulunamadı",
 				Details: err.Error()},
 			)
 
 		}
+
+		logs.Error(err.Error(),
+			logs.WithHandlerName("FavoriteListHandler_GetFavoriteList"),
+			logs.WithStatus(fiber.StatusInternalServerError),
+		)
+
 		return c.Status(fiber.StatusInternalServerError).JSON(models.ErorResponse{
 			Error:   "Servis hatası",
 			Details: err.Error()},
 		)
 	}
+
+	logs.Info("Favorite List Başarılı Şekilde Getirildi",
+		logs.WithHandlerName("FavoriteListHandler_GetFavoriteList"),
+		logs.WithStatus(fiber.StatusOK),
+	)
 
 	return c.Status(fiber.StatusOK).JSON(models.SuccesResponse{SuccesData: favoriteList})
 
@@ -61,9 +96,19 @@ func (h *FavoriteListHandler) GetUserFavoriteListsWithItemsHandle(c *fiber.Ctx) 
 
 func (h *FavoriteListHandler) CreateFavoriteListHandle(c *fiber.Ctx) error {
 
+	defer func() {
+		h.metrics.ObserveHandler("FavoriteListHandler_CreateFavoriteList", time.Now(), c.Response().StatusCode())
+	}()
+
 	authHeader := c.Get("Authorization")
 
 	if authHeader == "" {
+
+		logs.Warning("Token Authorization Hatasi",
+			logs.WithHandlerName("CreateFavoriteListHandle"),
+			logs.WithStatus(fiber.StatusUnauthorized),
+		)
+
 		return c.Status(fiber.StatusUnauthorized).JSON(models.ErorResponse{
 			Error:   "Token Authorization Hatasi",
 			Details: "Token"},
@@ -73,6 +118,12 @@ func (h *FavoriteListHandler) CreateFavoriteListHandle(c *fiber.Ctx) error {
 
 	list := models.CreateFavoriteList{}
 	if err := c.BodyParser(&list); err != nil {
+
+		logs.Error(err.Error(),
+			logs.WithHandlerName("CreateFavoriteListHandle"),
+			logs.WithStatus(fiber.StatusBadRequest),
+		)
+
 		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{
 			Error:   "Body Parse Hatasi",
 			Details: err.Error()},
@@ -80,6 +131,12 @@ func (h *FavoriteListHandler) CreateFavoriteListHandle(c *fiber.Ctx) error {
 	}
 	err := list.Validate()
 	if err != nil {
+
+		logs.Warning(err.Error(),
+			logs.WithHandlerName("CreateFavoriteListHandle"),
+			logs.WithStatus(fiber.StatusBadRequest),
+		)
+
 		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{
 			Error:   "Validate Hatasi",
 			Details: err.Error()},
@@ -95,11 +152,22 @@ func (h *FavoriteListHandler) CreateFavoriteListHandle(c *fiber.Ctx) error {
 	err = h.favoriteListService.CreateFavoriteList(&favoriteList, authHeader, ctx)
 
 	if err != nil {
+
+		logs.Error(err.Error(),
+			logs.WithHandlerName("CreateFavoriteListHandle"),
+			logs.WithStatus(fiber.StatusInternalServerError),
+		)
+
 		return c.Status(fiber.StatusInternalServerError).JSON(models.ErorResponse{
 			Error:   "Servis Hatasi",
 			Details: err.Error()},
 		)
 	}
+
+	logs.Info("Favorite List Başarılı Şekilde Oluşturuldu",
+		logs.WithHandlerName("CreateFavoriteListHandle"),
+		logs.WithStatus(fiber.StatusOK),
+	)
 
 	return c.Status(fiber.StatusOK).JSON(models.SuccesResponse{SuccesData: favoriteList})
 
@@ -107,9 +175,19 @@ func (h *FavoriteListHandler) CreateFavoriteListHandle(c *fiber.Ctx) error {
 
 func (h *FavoriteListHandler) UpdateFavoriteListHandle(c *fiber.Ctx) error {
 
+	defer func() {
+		h.metrics.ObserveHandler("FavoriteListHandler_UpdateFavoriteList", time.Now(), c.Response().StatusCode())
+	}()
+
 	listId, err := c.ParamsInt("listId")
 
 	if err != nil {
+
+		logs.Error(err.Error(),
+			logs.WithHandlerName("UpdateFavoriteListHandle"),
+			logs.WithStatus(fiber.StatusBadRequest),
+		)
+
 		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{
 			Error:   "List Id Bulunamadi",
 			Details: err.Error()},
@@ -118,6 +196,12 @@ func (h *FavoriteListHandler) UpdateFavoriteListHandle(c *fiber.Ctx) error {
 
 	authHeader := c.Get("Authorization")
 	if authHeader == "" {
+
+		logs.Warning("Token Authorization Hatasi",
+			logs.WithHandlerName("UpdateFavoriteListHandle"),
+			logs.WithStatus(fiber.StatusUnauthorized),
+		)
+
 		return c.Status(fiber.StatusUnauthorized).JSON(models.ErorResponse{
 			Error:   "Token Authorization Hatasi",
 			Details: "Token"},
@@ -128,6 +212,12 @@ func (h *FavoriteListHandler) UpdateFavoriteListHandle(c *fiber.Ctx) error {
 	list := models.UpdateFavoriteList{}
 
 	if err := c.BodyParser(&list); err != nil {
+
+		logs.Error(err.Error(),
+			logs.WithHandlerName("UpdateFavoriteListHandle"),
+			logs.WithStatus(fiber.StatusBadRequest),
+		)
+
 		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{
 			Error:   "Body Parse Hatasi",
 			Details: err.Error()},
@@ -137,6 +227,12 @@ func (h *FavoriteListHandler) UpdateFavoriteListHandle(c *fiber.Ctx) error {
 	err = list.Validate()
 
 	if err != nil {
+
+		logs.Warning(err.Error(),
+			logs.WithHandlerName("UpdateFavoriteListHandle"),
+			logs.WithStatus(fiber.StatusBadRequest),
+		)
+
 		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{
 			Error:   "Validate Hatasi",
 			Details: err.Error()},
@@ -148,11 +244,22 @@ func (h *FavoriteListHandler) UpdateFavoriteListHandle(c *fiber.Ctx) error {
 	favoriteList, err := h.favoriteListService.UpdateFavoriteList(listId, list, authHeader, ctx)
 
 	if err != nil {
+
+		logs.Error(err.Error(),
+			logs.WithHandlerName("UpdateFavoriteListHandle"),
+			logs.WithStatus(fiber.StatusInternalServerError),
+		)
+
 		return c.Status(fiber.StatusInternalServerError).JSON(models.ErorResponse{
 			Error:   "Servis Hatasi",
 			Details: err.Error()},
 		)
 	}
+
+	logs.Info("Favorite List Başarılı Şekilde Oluşturuldu",
+		logs.WithHandlerName("UpdateFavoriteListHandle"),
+		logs.WithStatus(fiber.StatusOK),
+	)
 
 	return c.Status(fiber.StatusOK).JSON(models.SuccesResponse{SuccesData: favoriteList})
 
@@ -160,9 +267,19 @@ func (h *FavoriteListHandler) UpdateFavoriteListHandle(c *fiber.Ctx) error {
 
 func (h *FavoriteListHandler) DeleteFavoriteListHandle(c *fiber.Ctx) error {
 
+	defer func() {
+		h.metrics.ObserveHandler("FavoriteListHandler_DeleteFavoriteList", time.Now(), c.Response().StatusCode())
+	}()
+
 	listId, err := c.ParamsInt("listId")
 
 	if err != nil {
+
+		logs.Warning(err.Error(),
+			logs.WithHandlerName("DeleteFavoriteListHandle"),
+			logs.WithStatus(fiber.StatusBadRequest),
+		)
+
 		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{
 			Error:   "List Id Bulunamadi",
 			Details: err.Error()},
@@ -171,6 +288,12 @@ func (h *FavoriteListHandler) DeleteFavoriteListHandle(c *fiber.Ctx) error {
 
 	authHeader := c.Get("Authorization")
 	if authHeader == "" {
+
+		logs.Warning("Token Authorization Hatasi",
+			logs.WithHandlerName("DeleteFavoriteListHandle"),
+			logs.WithStatus(fiber.StatusUnauthorized),
+		)
+
 		return c.Status(fiber.StatusUnauthorized).JSON(models.ErorResponse{
 			Error:   "Token Authorization Hatasi",
 			Details: "Token"},
@@ -183,11 +306,22 @@ func (h *FavoriteListHandler) DeleteFavoriteListHandle(c *fiber.Ctx) error {
 	err = h.favoriteListService.DeleteFavoriteList(listId, authHeader, ctx)
 
 	if err != nil {
+
+		logs.Error(err.Error(),
+			logs.WithHandlerName("DeleteFavoriteListHandle"),
+			logs.WithStatus(fiber.StatusBadRequest),
+		)
+
 		return c.Status(fiber.StatusBadRequest).JSON(models.ErorResponse{
 			Error:   "Servis Hatasi",
 			Details: err.Error()},
 		)
 	}
+
+	logs.Info("Favorite List Başarılı Şekilde Silindi",
+		logs.WithHandlerName("DeleteFavoriteListHandle"),
+		logs.WithStatus(fiber.StatusOK),
+	)
 
 	return c.Status(fiber.StatusOK).JSON(models.SuccesResponse{SuccesData: "Silindi"})
 

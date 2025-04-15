@@ -5,6 +5,7 @@ import (
 	"favorite_service/internal/handlers"
 	"favorite_service/internal/repositories"
 	"favorite_service/internal/services"
+	"favorite_service/metrics"
 	"favorite_service/pkg/psql"
 	"fmt"
 	"log"
@@ -14,7 +15,9 @@ import (
 	"github.com/go-swagno/swagno"
 	"github.com/go-swagno/swagno-fiber/swagger"
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/adaptor"
 	"github.com/joho/godotenv"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sony/gobreaker"
 )
 
@@ -23,7 +26,9 @@ func main() {
 
 	app := fiber.New()
 
-	err := godotenv.Load("../../.env")
+	//err := godotenv.Load("../../.env")
+
+	err := godotenv.Load(".env")
 	if err != nil {
 
 		log.Fatal("Env Dosyası Yüklenemedi", err)
@@ -67,13 +72,20 @@ func main() {
 
 	listService := services.NewFavoriteListService(listRepository, itemRepository, productClient, userClient)
 
-	itemHandler := handlers.NewFavoriteItemHandler(itemService)
+	histogram := metrics.NewNamedHistogram("http_request_FavoriteListService_duration_seconds", []float64{0.001, 0.005, 0.01, 0.05, 0.1})
+
+	registry := prometheus.NewRegistry()
+	registry.MustRegister(histogram.Histogram)
+
+	itemHandler := handlers.NewFavoriteItemHandler(itemService, histogram)
 
 	itemHandler.SetRoutes(app)
 
-	listHandler := handlers.NewFavoriteListHandler(listService)
+	listHandler := handlers.NewFavoriteListHandler(listService, histogram)
 
 	listHandler.SetRoutes(app)
+
+	app.Get("/metrics", adaptor.HTTPHandler(metrics.GetHandler(registry)))
 
 	sw := swagno.New(swagno.Config{Title: "Testing API", Version: "v1.0.0"})
 

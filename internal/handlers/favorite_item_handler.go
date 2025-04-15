@@ -4,6 +4,7 @@ import (
 	"context"
 	"favorite_service/internal/models"
 	"strconv"
+	"time"
 
 	"github.com/go-swagno/swagno/components/endpoint"
 	"github.com/go-swagno/swagno/components/http/response"
@@ -17,17 +18,27 @@ type favoriteItemService interface {
 	DeleteFavoriteItem(listId int, itemId int, token string, ctx context.Context) error
 }
 
-type FavoriteItemHandler struct {
-	favoriteItemService favoriteItemService
+type metric interface {
+	ObserveHandler(name string, startTime time.Time, status int)
 }
 
-func NewFavoriteItemHandler(favoriteItemRepository favoriteItemService) *FavoriteItemHandler {
+type FavoriteItemHandler struct {
+	favoriteItemService favoriteItemService
+	metric              metric
+}
+
+func NewFavoriteItemHandler(favoriteItemRepository favoriteItemService, metric metric) *FavoriteItemHandler {
 	return &FavoriteItemHandler{
 		favoriteItemService: favoriteItemRepository,
+		metric:              metric,
 	}
 }
 
 func (h *FavoriteItemHandler) GetFavoriteItemHandle(c *fiber.Ctx) error {
+
+	defer func() {
+		h.metric.ObserveHandler("FavoriteItemHandler_GetFavoriteItem", time.Now(), c.Response().StatusCode())
+	}()
 
 	listId, err := c.ParamsInt("listId")
 
@@ -63,6 +74,10 @@ func (h *FavoriteItemHandler) GetFavoriteItemHandle(c *fiber.Ctx) error {
 }
 
 func (h *FavoriteItemHandler) CreateFavoriteItemHandle(c *fiber.Ctx) error {
+
+	defer func() {
+		h.metric.ObserveHandler("FavoriteItemHandler_CreateFavoriteItem", time.Now(), c.Response().StatusCode())
+	}()
 
 	newItem := models.CreateFavoriteItem{}
 
@@ -108,6 +123,10 @@ func (h *FavoriteItemHandler) CreateFavoriteItemHandle(c *fiber.Ctx) error {
 }
 
 func (h *FavoriteItemHandler) DeleteFavoriteItemHandle(c *fiber.Ctx) error {
+
+	defer func() {
+		h.metric.ObserveHandler("FavoriteItemHandler_DeleteFavoriteItem", time.Now(), c.Response().StatusCode())
+	}()
 
 	listId, err := c.ParamsInt("listId")
 

@@ -49,10 +49,6 @@ func NewFavoriteListService(
 
 func (s *FavoriteListService) GetUserFavoriteListsWithItems(token string, ctx context.Context) ([]models.FavoriteListResponse, error) {
 
-	//ctx, cancel := context.WithTimeout(ctx, time.Second*5)
-
-	//defer cancel()
-
 	user, err := s.favoriteListUserClient.VerifyUser(token, ctx)
 
 	if err != nil {

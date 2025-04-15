@@ -26,8 +26,6 @@ func NewUserClient(userServiceURL string, cb circuitBreaker) *UserClient {
 	}
 }
 
-//ctx ilk parametre olacak
-
 func (c *UserClient) VerifyUser(token string, ctx context.Context) (*models.Users, error) {
 
 	result, err := c.cb.Execute(func() (interface{}, error) {

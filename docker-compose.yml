@@ -1,4 +1,3 @@
-version: '3.7'
 services:
   postgrsql_db:
     image: postgres:latest
@@ -7,16 +6,14 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}          
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}  
       POSTGRES_DB: ${POSTGRES_DB}
+    networks:
+      - my_shared_network
     volumes:
       - ./psql/create_tables.sql:/docker-entrypoint-initdb.d/create_tables.sql
       - ./psql/fill_tables.sql:/docker-entrypoint-initdb.d/fill_tables.sql
     ports:
       - "${DB_PORT}:5432"
 
-  redis:  
-    image: redis:latest
-    restart: always
-    ports:
-      - "${REDIS_PORT}:6375"
-    environment:
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
+networks:
+  my_shared_network:
+    external: true   
