@@ -5,6 +5,8 @@ import (
 	"favorite_service/internal/models"
 	"favorite_service/internal/repositories"
 	"favorite_service/internal/services"
+	"time"
+
 	"favorite_service/pkg/psql"
 	"fmt"
 	"os"
@@ -31,13 +33,14 @@ type HandlerSetup struct {
 	App               *fiber.App
 	MockUserClient    *MockUserClient
 	MockProductClient *MockProductClient
+	MockMetrics       *MockMetrics
 }
 
 func (h *HandlerSetup) SetupTestItemHandler() {
 	itemRepository := repositories.NewFavoriteItemRepository(h.DB)
 	listRepository := repositories.NewFavoriteListRepository(h.DB)
 	itemService := services.NewFavoriItemService(itemRepository, listRepository, h.MockProductClient, h.MockUserClient)
-	itemHandler := NewFavoriteItemHandler(itemService)
+	itemHandler := NewFavoriteItemHandler(itemService, h.MockMetrics)
 	itemHandler.SetRoutes(h.App)
 }
 
@@ -45,12 +48,11 @@ func (h *HandlerSetup) SetupListHandler() {
 	listRepository := repositories.NewFavoriteListRepository(h.DB)
 	itemRepository := repositories.NewFavoriteItemRepository(h.DB)
 	favoriteListService := services.NewFavoriteListService(listRepository, itemRepository, h.MockProductClient, h.MockUserClient)
-	favoriteListHandler := NewFavoriteListHandler(favoriteListService)
+	favoriteListHandler := NewFavoriteListHandler(favoriteListService, h.MockMetrics)
 	favoriteListHandler.SetRoutes(h.App)
 }
 
 func (t *TestDB) Setup() error {
-	//ctx := context.Background()
 
 	dbConfig := map[string]string{
 		"POSTGRES_USER":     "user",
@@ -141,6 +143,12 @@ func (m *MockUserClient) VerifyUser(token string, ctx context.Context) (*models.
 
 }
 
+type MockMetrics struct{}
+
+func (m *MockMetrics) ObserveHandler(name string, startTime time.Time, status int) {
+
+}
+
 func TestMain(m *testing.M) {
 	testDB := &TestDB{}
 	if err := testDB.Setup(); err != nil {
@@ -150,9 +158,11 @@ func TestMain(m *testing.M) {
 	defer testDB.CleanUp()
 
 	handlerSetup := &HandlerSetup{
-		DB:             testDB.DB,
-		App:            app,
-		MockUserClient: &MockUserClient{},
+		DB:                testDB.DB,
+		App:               app,
+		MockUserClient:    &MockUserClient{},
+		MockProductClient: &MockProductClient{},
+		MockMetrics:       &MockMetrics{},
 	}
 
 	handlerSetup.SetupTestItemHandler()
